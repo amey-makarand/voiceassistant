@@ -2,6 +2,7 @@ from gtts import gTTS
 import speech_recognition as sr
 from pygame import mixer
 import random
+from tabulate import tabulate
 import re
 from pyowm import OWM
 import webbrowser
@@ -13,6 +14,7 @@ from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from bs4 import BeautifulSoup
 from bs4 import BeautifulSoup as soup
+import numpy as np
 import subprocess
 import requests
 import urllib.request #used to make requests
@@ -100,16 +102,7 @@ def jarvis(command):
 
                 intro = '\n'.join([ para.text for para in paragraphs[0:5]])
                 print (intro)
-                mp3name = 'speech.mp3'
-                language = 'en'
-                myobj = gTTS(text=intro, lang=language, slow=False)   
-                myobj.save(mp3name)
-                mixer.init()
-                mixer.music.load("speech.mp3")
-                mixer.music.play()
-                
-            elif 'stop' in command:
-                mixer.music.stop()
+              
 
     elif 'youtube' in command:
         talk('Ok!')
@@ -144,65 +137,51 @@ def jarvis(command):
 
                 
     elif 'covid-19 news' in command:
-        url = 'https://www.mohfw.gov.in/' 
-
-
-        web_content = requests.get(url).content
-
-
-        soup = BeautifulSoup(web_content, "html.parser")
-
-
         extract_contents = lambda row: [x.text.replace('\n', '') for x in row] 
+        URL = 'https://www.mohfw.gov.in/'
+	
+        SHORT_HEADERS = ['SNo', 'State','Indian-Confirmed(Including Foreign Confirmed)','Cured','Death'] 
+	
+        response = requests.get(URL).content 
+        soup = BeautifulSoup(response, 'html.parser') 
+        header = extract_contents(soup.tr.find_all('th')) 
 
-        stats = [] # initialize stats
-        all_rows = soup.find_all('tr') # find all table rows 
+        stats = [] 
+        all_rows = soup.find_all('tr') 
 
         for row in all_rows: 
-            stat = extract_contents(row.find_all('td')) # find all data cells  
+            stat = extract_contents(row.find_all('td')) 
+	
+            if stat: 
+                if len(stat) == 4: 
+			# last row 
+                    stat = ['', *stat] 
+                    stats.append(stat) 
+                elif len(stat) == 5: 
+                    stats.append(stat) 
 
-            if len(stat) == 5: 
-                stats.append(stat)
+        stats[-1][0] = len(stats) 
+        stats[-1][1] = "Total Cases"
 
 
-        new_cols = ["Sr.No", "States/UT","Confirmed","Recovered","Deceased"]
-        state_data = pd.DataFrame(data = stats, columns = new_cols)
+
+        objects = [] 
+        for row in stats : 
+            objects.append(row[1]) 
+	
+        y_pos = np.arange(len(objects)) 
+
+        performance = [] 
+        for row in stats[:len(stats)-1] : 
+            performance.append(int(row[2])) 
+
+        performance.append(int(stats[-1][2][:len(stats[-1][2])-1])) 
+
+        table = tabulate(stats, headers=SHORT_HEADERS) 
+        print(table) 
 
 
-        state_data['Confirmed'] = state_data['Confirmed'].map(int)
-        state_data['Recovered'] = state_data['Recovered'].map(int)
-        state_data['Deceased']  = state_data['Deceased'].map(int)
-
-
-        table = PrettyTable()
-        table.field_names = (new_cols)
-        for i in stats:
-            table.add_row(i)
-        table.add_row(["","Total", 
-               sum(state_data['Confirmed']), 
-               sum(state_data['Recovered']), 
-               sum(state_data['Deceased'])])
-        print(table)
-
-        group_size = [sum(state_data['Confirmed']), 
-              sum(state_data['Recovered']), 
-              sum(state_data['Deceased'])]
-
-        group_labels = ['Confirmed\n' + str(sum(state_data['Confirmed'])), 
-                'Recovered\n' + str(sum(state_data['Recovered'])), 
-                'Deceased\n'  + str(sum(state_data['Deceased']))]
-        custom_colors = ['skyblue','yellowgreen','tomato']
-
-        plt.figure(figsize = (5,5))
-        plt.pie(group_size, labels = group_labels, colors = custom_colors)
-        central_circle = plt.Circle((0,0), 0.5, color = 'white')
-        fig = plt.gcf()
-        fig.gca().add_artist(central_circle)
-        plt.rc('font', size = 12) 
-        plt.title('Nationwide total Confirmed, Recovered and Deceased Cases', fontsize = 16)
-        plt.show()
-
-    elif 'download image' in command:
+    if 'download image' in command:
           
         folder = 'C:/Users/MMD/Desktop/vap/wallpapers'
         for the_file in os.listdir(folder):
